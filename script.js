@@ -19,6 +19,10 @@ function clearTaskWarning() {
     taskInput.classList.remove("input-warning");
 }
 
+function getTimestamp() {
+    return new Date().toLocaleString();
+}
+
 function getPriorityLabel(priority) {
     if (priority === "low") {
         return "Low";
@@ -42,6 +46,9 @@ function displayTasks() {
             taskElement.classList.add("completed");
         }
 
+        const taskDetails = document.createElement("div");
+        taskDetails.className = "task-details";
+
         const taskText = document.createElement("div");
         taskText.className = "task-text";
         taskText.textContent = task.name + " ";
@@ -51,6 +58,10 @@ function displayTasks() {
         priorityText.textContent = "(" + getPriorityLabel(task.priority) + ")";
         taskText.appendChild(priorityText);
 
+        const timestampText = document.createElement("div");
+        timestampText.className = "timestamp";
+        timestampText.textContent = "Added: " + task.createdAt + " | Updated: " + task.updatedAt;
+
         const actions = document.createElement("div");
         actions.className = "task-actions";
 
@@ -59,6 +70,7 @@ function displayTasks() {
         completeButton.textContent = task.completed ? "Undo" : "Complete";
         completeButton.addEventListener("click", function() {
             task.completed = !task.completed;
+            task.updatedAt = getTimestamp();
             displayTasks();
         });
 
@@ -70,9 +82,11 @@ function displayTasks() {
             displayTasks();
         });
 
+        taskDetails.appendChild(taskText);
+        taskDetails.appendChild(timestampText);
         actions.appendChild(completeButton);
         actions.appendChild(deleteButton);
-        taskElement.appendChild(taskText);
+        taskElement.appendChild(taskDetails);
         taskElement.appendChild(actions);
         taskList.appendChild(taskElement);
     });
@@ -100,10 +114,13 @@ form.addEventListener("submit", function(event) {
         return;
     }
 
+    const timestamp = getTimestamp();
     const task = {
         name: taskName,
         priority: taskPriority,
-        completed: false
+        completed: false,
+        createdAt: timestamp,
+        updatedAt: timestamp
     };
 
     tasks.push(task);

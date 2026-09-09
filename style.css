@@ -75,8 +75,18 @@ button {
     background: #fafafa;
 }
 
-.task-text {
+.task-details {
     flex: 1;
+}
+
+.task-text {
+    font-weight: bold;
+}
+
+.timestamp {
+    margin-top: 4px;
+    color: #666;
+    font-size: 0.9em;
 }
 
 .priority {
