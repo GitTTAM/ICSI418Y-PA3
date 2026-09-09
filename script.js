@@ -6,6 +6,19 @@ const message = document.querySelector("#message");
 
 const tasks = [];
 
+function showTaskWarning() {
+    message.textContent = "Entering a task is required before you can add it.";
+    message.classList.add("warning");
+    taskInput.classList.add("input-warning");
+    taskInput.focus();
+}
+
+function clearTaskWarning() {
+    message.textContent = "";
+    message.classList.remove("warning");
+    taskInput.classList.remove("input-warning");
+}
+
 function getPriorityLabel(priority) {
     if (priority === "low") {
         return "Low";
@@ -65,6 +78,17 @@ function displayTasks() {
     });
 }
 
+taskInput.addEventListener("input", function() {
+    if (taskInput.value.trim() !== "") {
+        clearTaskWarning();
+    }
+});
+
+taskInput.addEventListener("invalid", function(event) {
+    event.preventDefault();
+    showTaskWarning();
+});
+
 form.addEventListener("submit", function(event) {
     event.preventDefault();
 
@@ -72,7 +96,7 @@ form.addEventListener("submit", function(event) {
     const taskPriority = priorityInput.value;
 
     if (taskName === "") {
-        message.textContent = "Please enter a task name.";
+        showTaskWarning();
         return;
     }
 
@@ -84,6 +108,6 @@ form.addEventListener("submit", function(event) {
 
     tasks.push(task);
     taskInput.value = "";
-    message.textContent = "";
+    clearTaskWarning();
     displayTasks();
 });

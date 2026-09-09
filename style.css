@@ -19,11 +19,21 @@ body {
     margin-bottom: 16px;
 }
 
+.required-text {
+    color: #b00020;
+    font-size: 0.9em;
+}
+
 input,
 select,
 button {
     font: inherit;
     padding: 8px;
+}
+
+input.input-warning {
+    border: 2px solid #b00020;
+    background: #fff6f6;
 }
 
 button {
@@ -35,6 +45,19 @@ button {
 .message {
     min-height: 20px;
     color: #b00020;
+}
+
+.message.warning::before {
+    content: "!";
+    display: inline-grid;
+    place-items: center;
+    width: 16px;
+    height: 16px;
+    margin-right: 6px;
+    border: 1px solid #b00020;
+    border-radius: 50%;
+    font-size: 12px;
+    font-weight: bold;
 }
 
 .task-list {
@@ -58,7 +81,6 @@ button {
 
 .priority {
     font-weight: bold;
-    text-transform: capitalize;
 }
 
 .priority-low {

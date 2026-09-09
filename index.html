@@ -12,8 +12,8 @@
         <h1>Matt's Task List for 418Y</h1>
 
         <form id="task-form" class="task-form">
-            <label for="task-input">Task:</label>
-            <input id="task-input" type="text" placeholder="Enter a task">
+            <label for="task-input">Task <span class="required-text">(required)</span>:</label>
+            <input id="task-input" type="text" placeholder="Enter a task" required aria-describedby="message">
 
             <label for="priority">Priority:</label>
             <select id="priority">
@@ -22,7 +22,7 @@
                 <option value="high">High</option>
             </select>
 
-            <button type="submit">Add Task</button>
+            <button id="add-task-button" type="submit">Add Task</button>
         </form>
 
         <p id="message" class="message" aria-live="polite"></p>
@@ -30,4 +30,3 @@
     </main>
 </body>
 </html>
-
