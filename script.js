@@ -6,6 +6,18 @@ const message = document.querySelector("#message");
 
 const tasks = [];
 
+function getPriorityLabel(priority) {
+    if (priority === "low") {
+        return "Low";
+    }
+
+    if (priority === "medium") {
+        return "Medium";
+    }
+
+    return "High";
+}
+
 function displayTasks() {
     taskList.innerHTML = "";
 
@@ -23,7 +35,7 @@ function displayTasks() {
 
         const priorityText = document.createElement("span");
         priorityText.className = "priority priority-" + task.priority;
-        priorityText.textContent = "(" + task.priority + ")";
+        priorityText.textContent = "(" + getPriorityLabel(task.priority) + ")";
         taskText.appendChild(priorityText);
 
         const actions = document.createElement("div");
