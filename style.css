@@ -1,0 +1,84 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    background: #f4f4f4;
+    color: #222;
+}
+
+.page {
+    max-width: 700px;
+    margin: 40px auto;
+    padding: 24px;
+    background: white;
+    border: 1px solid #ddd;
+}
+
+.task-form {
+    display: grid;
+    gap: 10px;
+    margin-bottom: 16px;
+}
+
+input,
+select,
+button {
+    font: inherit;
+    padding: 8px;
+}
+
+button {
+    cursor: pointer;
+    border: 1px solid #333;
+    background: #eeeeee;
+}
+
+.message {
+    min-height: 20px;
+    color: #b00020;
+}
+
+.task-list {
+    display: grid;
+    gap: 10px;
+}
+
+.task-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid #ccc;
+    background: #fafafa;
+}
+
+.task-text {
+    flex: 1;
+}
+
+.priority {
+    font-weight: bold;
+    text-transform: capitalize;
+}
+
+.priority-low {
+    color: #1b6e32;
+}
+
+.priority-medium {
+    color: #8a5a00;
+}
+
+.priority-high {
+    color: #b00020;
+}
+
+.completed .task-text {
+    text-decoration: line-through;
+    color: #777;
+}
+
+.task-actions {
+    display: flex;
+    gap: 8px;
+}
