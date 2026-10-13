@@ -1,0 +1,813 @@
+import { useEffect, useMemo, useState } from "react";
+import "./App.css";
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5050/api";
+const STATUS_OPTIONS = ["Planning", "Active", "Completed"];
+
+const emptySignup = {
+  f_name: "",
+  l_name: "",
+  username: "",
+  password: ""
+};
+
+const emptyLogin = {
+  username: "",
+  password: ""
+};
+
+const emptyProject = {
+  name: "",
+  description: "",
+  status: "Planning",
+  project_lead_id: ""
+};
+
+async function apiRequest(path, options = {}) {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: options.method || "GET",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: options.body ? JSON.stringify(options.body) : undefined
+  });
+
+  const data = await response.json().catch(() => ({
+    message: "The server sent back something I could not read."
+  }));
+
+  if (!response.ok) {
+    throw new Error(data.message || "Something went wrong.");
+  }
+
+  return data;
+}
+
+function hasEmptyField(values) {
+  return Object.values(values).some((value) => value.trim() === "");
+}
+
+function formatUser(user) {
+  if (!user) {
+    return "Unknown user";
+  }
+
+  const firstName = user.f_name?.trim() || "";
+  const lastName = user.l_name?.trim() || "";
+  const username = user.username?.trim() || "";
+  const visibleParts = [];
+
+  [firstName, lastName].forEach((part) => {
+    if (part && !visibleParts.some((visiblePart) => visiblePart.toLowerCase() === part.toLowerCase())) {
+      visibleParts.push(part);
+    }
+  });
+
+  const displayName = visibleParts.join(" ");
+
+  if (!username) {
+    return displayName || "Unknown user";
+  }
+
+  if (!displayName || displayName.toLowerCase() === username.toLowerCase()) {
+    return username;
+  }
+
+  return `${displayName} (${username})`;
+}
+
+function App() {
+  const [activeForm, setActiveForm] = useState("signup");
+  const [signupForm, setSignupForm] = useState(emptySignup);
+  const [loginForm, setLoginForm] = useState(emptyLogin);
+  const [projectForm, setProjectForm] = useState(emptyProject);
+  const [signupMessage, setSignupMessage] = useState(null);
+  const [loginMessage, setLoginMessage] = useState(null);
+  const [projectMessage, setProjectMessage] = useState(null);
+  const [membershipMessage, setMembershipMessage] = useState(null);
+  const [dataMessage, setDataMessage] = useState(null);
+  const [loggedInUser, setLoggedInUser] = useState(null);
+  const [users, setUsers] = useState([]);
+  const [projects, setProjects] = useState([]);
+  const [memberships, setMemberships] = useState([]);
+  const [selectedProjectId, setSelectedProjectId] = useState("");
+  const [memberUserId, setMemberUserId] = useState("");
+  const [projectView, setProjectView] = useState("all");
+  const [isSignupLoading, setIsSignupLoading] = useState(false);
+  const [isLoginLoading, setIsLoginLoading] = useState(false);
+  const [isProjectLoading, setIsProjectLoading] = useState(false);
+  const [isMemberLoading, setIsMemberLoading] = useState(false);
+  const [isDataLoading, setIsDataLoading] = useState(false);
+
+  const visibleProjects = useMemo(() => {
+    if (projectView !== "mine" || !loggedInUser) {
+      return projects;
+    }
+
+    return projects.filter((project) => {
+      const isLead = project.project_lead_id === loggedInUser._id;
+      const isMember = (project.member_ids || []).includes(loggedInUser._id);
+
+      return isLead || isMember;
+    });
+  }, [loggedInUser, projectView, projects]);
+
+  const selectedProject = useMemo(
+    () => visibleProjects.find((project) => project._id === selectedProjectId) || null,
+    [selectedProjectId, visibleProjects]
+  );
+
+  const selectedMemberIds = useMemo(
+    () => new Set(memberships.map((membership) => membership.user_id?._id).filter(Boolean)),
+    [memberships]
+  );
+
+  useEffect(() => {
+    if (loggedInUser && selectedProjectId) {
+      loadMemberships(selectedProjectId);
+    } else {
+      setMemberships([]);
+    }
+  }, [loggedInUser, selectedProjectId]);
+
+  useEffect(() => {
+    if (!loggedInUser) {
+      return;
+    }
+
+    if (visibleProjects.length === 0) {
+      setSelectedProjectId("");
+      return;
+    }
+
+    if (!selectedProjectId || !visibleProjects.some((project) => project._id === selectedProjectId)) {
+      setSelectedProjectId(visibleProjects[0]._id);
+    }
+  }, [loggedInUser, selectedProjectId, visibleProjects]);
+
+  function clearProjectWorkspace() {
+    setProjectForm(emptyProject);
+    setProjectMessage(null);
+    setMembershipMessage(null);
+    setDataMessage(null);
+    setUsers([]);
+    setProjects([]);
+    setMemberships([]);
+    setSelectedProjectId("");
+    setMemberUserId("");
+    setProjectView("all");
+    setIsDataLoading(false);
+  }
+
+  async function loadWorkspaceData(preferredProjectId) {
+    setIsDataLoading(true);
+    setDataMessage(null);
+
+    try {
+      const [usersData, projectsData] = await Promise.all([
+        apiRequest("/users"),
+        apiRequest("/projects")
+      ]);
+
+      const loadedProjects = projectsData.projects || [];
+      setUsers(usersData.users || []);
+      setProjects(loadedProjects);
+
+      setSelectedProjectId((currentProjectId) => {
+        if (preferredProjectId) {
+          return preferredProjectId;
+        }
+
+        if (loadedProjects.some((project) => project._id === currentProjectId)) {
+          return currentProjectId;
+        }
+
+        return loadedProjects[0]?._id || "";
+      });
+    } catch (error) {
+      setDataMessage({
+        type: "error",
+        text: error.message
+      });
+    } finally {
+      setIsDataLoading(false);
+    }
+  }
+
+  async function loadMemberships(projectId) {
+    setMembershipMessage(null);
+
+    try {
+      const data = await apiRequest(`/projects/${projectId}/memberships`);
+      setMemberships(data.memberships || []);
+    } catch (error) {
+      setMemberships([]);
+      setMembershipMessage({
+        type: "error",
+        text: error.message
+      });
+    }
+  }
+
+  function updateSignupField(event) {
+    const { name, value } = event.target;
+    setSignupForm((currentForm) => ({
+      ...currentForm,
+      [name]: value
+    }));
+  }
+
+  function updateLoginField(event) {
+    const { name, value } = event.target;
+    setLoginForm((currentForm) => ({
+      ...currentForm,
+      [name]: value
+    }));
+  }
+
+  function updateProjectField(event) {
+    const { name, value } = event.target;
+    setProjectForm((currentForm) => ({
+      ...currentForm,
+      [name]: value
+    }));
+  }
+
+  async function submitSignup(event) {
+    event.preventDefault();
+    setSignupMessage(null);
+
+    if (hasEmptyField(signupForm)) {
+      setSignupMessage({
+        type: "error",
+        text: "Fill out the signup fields first."
+      });
+      return;
+    }
+
+    setIsSignupLoading(true);
+
+    try {
+      const data = await apiRequest("/signup", {
+        method: "POST",
+        body: signupForm
+      });
+      setSignupMessage({
+        type: "success",
+        text: data.message
+      });
+      setSignupForm(emptySignup);
+
+      if (loggedInUser) {
+        await loadWorkspaceData();
+      }
+    } catch (error) {
+      setSignupMessage({
+        type: "error",
+        text: error.message
+      });
+    } finally {
+      setIsSignupLoading(false);
+    }
+  }
+
+  async function submitLogin(event) {
+    event.preventDefault();
+    setLoginMessage(null);
+
+    if (hasEmptyField(loginForm)) {
+      setLoginMessage({
+        type: "error",
+        text: "Add both username and password first."
+      });
+      return;
+    }
+
+    setIsLoginLoading(true);
+
+    try {
+      const data = await apiRequest("/login", {
+        method: "POST",
+        body: loginForm
+      });
+      setLoginMessage({
+        type: "success",
+        text: data.message
+      });
+      setLoggedInUser(data.user);
+      setLoginForm(emptyLogin);
+      await loadWorkspaceData();
+    } catch (error) {
+      setLoginMessage({
+        type: "error",
+        text: error.message
+      });
+    } finally {
+      setIsLoginLoading(false);
+    }
+  }
+
+  function logout() {
+    setLoggedInUser(null);
+    setLoginMessage({
+      type: "success",
+      text: "You are logged out. The project tools are tucked away."
+    });
+    setActiveForm("login");
+    clearProjectWorkspace();
+  }
+
+  async function submitProject(event) {
+    event.preventDefault();
+    setProjectMessage(null);
+
+    if (!loggedInUser) {
+      setProjectMessage({
+        type: "error",
+        text: "Log in before making projects."
+      });
+      return;
+    }
+
+    if (hasEmptyField(projectForm)) {
+      setProjectMessage({
+        type: "error",
+        text: "Give the project its missing info first."
+      });
+      return;
+    }
+
+    setIsProjectLoading(true);
+
+    try {
+      const data = await apiRequest("/projects", {
+        method: "POST",
+        body: projectForm
+      });
+      setProjectMessage({
+        type: "success",
+        text: data.message
+      });
+      setProjectForm(emptyProject);
+      await loadWorkspaceData(data.project._id);
+      await loadMemberships(data.project._id);
+    } catch (error) {
+      setProjectMessage({
+        type: "error",
+        text: error.message
+      });
+    } finally {
+      setIsProjectLoading(false);
+    }
+  }
+
+  async function addMember(event) {
+    event.preventDefault();
+    setMembershipMessage(null);
+
+    if (!loggedInUser) {
+      setMembershipMessage({
+        type: "error",
+        text: "Log in before changing the team list."
+      });
+      return;
+    }
+
+    if (!selectedProjectId) {
+      setMembershipMessage({
+        type: "error",
+        text: "Pick a project first."
+      });
+      return;
+    }
+
+    if (!memberUserId) {
+      setMembershipMessage({
+        type: "error",
+        text: "Pick a user first."
+      });
+      return;
+    }
+
+    setIsMemberLoading(true);
+
+    try {
+      const data = await apiRequest(`/projects/${selectedProjectId}/memberships`, {
+        method: "POST",
+        body: {
+          user_id: memberUserId
+        }
+      });
+      setMembershipMessage({
+        type: "success",
+        text: data.message
+      });
+      setMemberUserId("");
+      setMemberships(data.memberships || []);
+      await loadWorkspaceData(selectedProjectId);
+    } catch (error) {
+      setMembershipMessage({
+        type: "error",
+        text: error.message
+      });
+    } finally {
+      setIsMemberLoading(false);
+    }
+  }
+
+  async function removeMember(userId) {
+    setMembershipMessage(null);
+    setIsMemberLoading(true);
+
+    try {
+      const data = await apiRequest(`/projects/${selectedProjectId}/memberships/${userId}`, {
+        method: "DELETE"
+      });
+      setMembershipMessage({
+        type: "success",
+        text: data.message
+      });
+      setMemberships(data.memberships || []);
+      await loadWorkspaceData(selectedProjectId);
+    } catch (error) {
+      setMembershipMessage({
+        type: "error",
+        text: error.message
+      });
+    } finally {
+      setIsMemberLoading(false);
+    }
+  }
+
+  return (
+    <main className={loggedInUser ? "app-shell has-fresh-start" : "app-shell"}>
+      <header className="app-header">
+        <p className="course-label">ICSI 418Y PA3</p>
+        <h1>Projects and Memberships</h1>
+      </header>
+
+      <div className={loggedInUser ? "workspace-grid" : "workspace-grid is-auth-only"}>
+        <section className="panel auth-panel" aria-labelledby="auth-title">
+          <div className="panel-heading">
+            <h2 id="auth-title">{loggedInUser ? "Signed In" : "Users"}</h2>
+            {!loggedInUser ? (
+              <p>Make or pick your user, then log in to get to the project board.</p>
+            ) : null}
+          </div>
+
+          {loggedInUser ? (
+            <div className="login-state">
+              <strong>Logged in as {formatUser(loggedInUser)}</strong>
+              <button className="ghost-button compact-button" type="button" onClick={logout}>
+                Log Out
+              </button>
+            </div>
+          ) : (
+            <>
+          <div className="tabs" role="tablist" aria-label="Authentication forms">
+            <button
+              className={activeForm === "signup" ? "tab is-active" : "tab"}
+              type="button"
+              role="tab"
+              aria-selected={activeForm === "signup"}
+              onClick={() => setActiveForm("signup")}
+            >
+              Signup
+            </button>
+            <button
+              className={activeForm === "login" ? "tab is-active" : "tab"}
+              type="button"
+              role="tab"
+              aria-selected={activeForm === "login"}
+              onClick={() => setActiveForm("login")}
+            >
+              Login
+            </button>
+          </div>
+
+          {activeForm === "signup" ? (
+            <form className="auth-form" onSubmit={submitSignup}>
+              <label>
+                <span>First Name</span>
+                <input
+                  name="f_name"
+                  type="text"
+                  value={signupForm.f_name}
+                  onChange={updateSignupField}
+                  autoComplete="given-name"
+                />
+              </label>
+
+              <label>
+                <span>Last Name</span>
+                <input
+                  name="l_name"
+                  type="text"
+                  value={signupForm.l_name}
+                  onChange={updateSignupField}
+                  autoComplete="family-name"
+                />
+              </label>
+
+              <label>
+                <span>Username</span>
+                <input
+                  name="username"
+                  type="text"
+                  value={signupForm.username}
+                  onChange={updateSignupField}
+                  autoComplete="username"
+                />
+              </label>
+
+              <label>
+                <span>Password</span>
+                <input
+                  name="password"
+                  type="password"
+                  value={signupForm.password}
+                  onChange={updateSignupField}
+                  autoComplete="new-password"
+                />
+              </label>
+
+              <button className="primary-button" type="submit" disabled={isSignupLoading}>
+                {isSignupLoading ? "Creating..." : "Create Account"}
+              </button>
+
+              {signupMessage ? (
+                <p className={`form-message ${signupMessage.type}`} aria-live="polite">
+                  {signupMessage.text}
+                </p>
+              ) : null}
+            </form>
+          ) : (
+            <form className="auth-form" onSubmit={submitLogin}>
+              <label>
+                <span>Username</span>
+                <input
+                  name="username"
+                  type="text"
+                  value={loginForm.username}
+                  onChange={updateLoginField}
+                  autoComplete="username"
+                />
+              </label>
+
+              <label>
+                <span>Password</span>
+                <input
+                  name="password"
+                  type="password"
+                  value={loginForm.password}
+                  onChange={updateLoginField}
+                  autoComplete="current-password"
+                />
+              </label>
+
+              <button className="primary-button" type="submit" disabled={isLoginLoading}>
+                {isLoginLoading ? "Logging in..." : "Log In"}
+              </button>
+
+              {loginMessage ? (
+                <p className={`form-message ${loginMessage.type}`} aria-live="polite">
+                  {loginMessage.text}
+                </p>
+              ) : null}
+            </form>
+          )}
+            </>
+          )}
+        </section>
+
+        {loggedInUser ? (
+          <>
+        <section className="panel project-panel" aria-labelledby="project-title">
+          <div className="panel-heading">
+            <h2 id="project-title">Create Project</h2>
+            <p>Give it a name, pick a status, and choose the lead.</p>
+          </div>
+
+          {dataMessage ? (
+            <p className={`form-message ${dataMessage.type}`} aria-live="polite">
+              {dataMessage.text}
+            </p>
+          ) : null}
+
+          <form className="project-form" onSubmit={submitProject}>
+            <label>
+              <span>Name</span>
+              <input name="name" type="text" value={projectForm.name} onChange={updateProjectField} />
+            </label>
+
+            <label>
+              <span>Description</span>
+              <textarea
+                name="description"
+                value={projectForm.description}
+                onChange={updateProjectField}
+                rows="4"
+              />
+            </label>
+
+            <div className="form-row">
+              <label>
+                <span>Status</span>
+                <select name="status" value={projectForm.status} onChange={updateProjectField}>
+                  {STATUS_OPTIONS.map((status) => (
+                    <option key={status} value={status}>
+                      {status}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                <span>Project Lead</span>
+                <select
+                  name="project_lead_id"
+                  value={projectForm.project_lead_id}
+                  onChange={updateProjectField}
+                >
+                  <option value="">Select user</option>
+                  {users.map((user) => (
+                    <option key={user._id} value={user._id}>
+                      {formatUser(user)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <button className="primary-button" type="submit" disabled={isProjectLoading || users.length === 0}>
+              {isProjectLoading ? "Saving..." : "Create Project"}
+            </button>
+
+            {projectMessage ? (
+              <p className={`form-message ${projectMessage.type}`} aria-live="polite">
+                {projectMessage.text}
+              </p>
+            ) : null}
+          </form>
+
+          <div className="list-section">
+            <div className="section-heading">
+              <h3>Projects</h3>
+              <div className="section-actions">
+                <div className="view-switch" role="group" aria-label="Project list view">
+                  <button
+                    className={projectView === "all" ? "switch-button is-active" : "switch-button"}
+                    type="button"
+                    onClick={() => setProjectView("all")}
+                  >
+                    All
+                  </button>
+                  <button
+                    className={projectView === "mine" ? "switch-button is-active" : "switch-button"}
+                    type="button"
+                    onClick={() => setProjectView("mine")}
+                  >
+                    Mine
+                  </button>
+                </div>
+                <button className="ghost-button compact-button" type="button" onClick={() => loadWorkspaceData()}>
+                  Refresh
+                </button>
+              </div>
+            </div>
+
+            {isDataLoading ? <p className="empty-text">Loading projects...</p> : null}
+
+            {!isDataLoading && visibleProjects.length === 0 ? (
+              <p className="empty-text">
+                {projectView === "mine" ? "Nothing in your pile yet." : "No projects yet. Make the first one."}
+              </p>
+            ) : null}
+
+            <div className="project-list">
+              {visibleProjects.map((project) => (
+                <button
+                  key={project._id}
+                  className={project._id === selectedProjectId ? "project-item is-selected" : "project-item"}
+                  type="button"
+                  onClick={() => setSelectedProjectId(project._id)}
+                >
+                  <span className="project-name">{project.name}</span>
+                  <span className={`status-badge status-${project.status.toLowerCase()}`}>
+                    {project.status}
+                  </span>
+                  <span>{project.description}</span>
+                  <span className="project-meta">
+                    Lead: {formatUser(project.project_lead)} · {project.member_count || 0}{" "}
+                    {(project.member_count || 0) === 1 ? "member" : "members"}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="panel membership-panel" aria-labelledby="membership-title">
+          <div className="panel-heading">
+            <h2 id="membership-title">Memberships</h2>
+            <p>Pick a project, then tune its team list.</p>
+          </div>
+
+          <label>
+            <span>Selected Project</span>
+            <select
+              value={selectedProjectId}
+              onChange={(event) => setSelectedProjectId(event.target.value)}
+            >
+              <option value="">Select project</option>
+              {visibleProjects.map((project) => (
+                <option key={project._id} value={project._id}>
+                  {project.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {selectedProject ? (
+            <div className="selected-project-summary">
+              <strong>{selectedProject.name}</strong>
+              <span>
+                Lead: {formatUser(selectedProject.project_lead)} · {selectedProject.member_count || 0}{" "}
+                {(selectedProject.member_count || 0) === 1 ? "member" : "members"}
+              </span>
+            </div>
+          ) : null}
+
+          <form className="member-form" onSubmit={addMember}>
+            <label>
+              <span>Add Registered User</span>
+              <select value={memberUserId} onChange={(event) => setMemberUserId(event.target.value)}>
+                <option value="">Select user</option>
+                {users.map((user) => {
+                  const isAlreadyMember = selectedMemberIds.has(user._id);
+
+                  return (
+                    <option key={user._id} value={user._id} disabled={isAlreadyMember}>
+                      {formatUser(user)}
+                      {isAlreadyMember ? " - already on team" : ""}
+                    </option>
+                  );
+                })}
+              </select>
+            </label>
+
+            <button
+              className="primary-button"
+              type="submit"
+              disabled={isMemberLoading || !selectedProjectId || users.length === 0}
+            >
+              {isMemberLoading ? "Updating..." : "Add Member"}
+            </button>
+          </form>
+
+          {membershipMessage ? (
+            <p className={`form-message ${membershipMessage.type}`} aria-live="polite">
+              {membershipMessage.text}
+            </p>
+          ) : null}
+
+          <div className="member-list">
+            {selectedProjectId && memberships.length === 0 ? (
+              <p className="empty-text">No members here yet.</p>
+            ) : null}
+
+            {memberships.map((membership) => {
+              const user = membership.user_id;
+              const isLead = selectedProject && user && user._id === selectedProject.project_lead_id;
+
+              return (
+                <div className="member-item" key={membership._id}>
+                  <div>
+                    <strong>{formatUser(user)}</strong>
+                    <span>{isLead ? "Project Lead" : "Member"}</span>
+                  </div>
+                  <button
+                    className="danger-button"
+                    type="button"
+                    disabled={!user || isLead || isMemberLoading}
+                    onClick={() => {
+                      if (user) {
+                        removeMember(user._id);
+                      }
+                    }}
+                  >
+                    {isLead ? "Lead Locked" : "Remove"}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+          </>
+        ) : null}
+      </div>
+    </main>
+  );
+}
+
+export default App;
