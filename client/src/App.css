@@ -387,10 +387,19 @@ textarea:focus {
 }
 
 .project-name {
+  min-width: 0;
   color: var(--ink);
   font-family: var(--display-font);
   font-size: 1.35rem;
   font-weight: bold;
+  overflow-wrap: anywhere;
+}
+
+.project-description,
+.project-meta {
+  grid-column: 1 / -1;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .project-meta,

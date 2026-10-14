@@ -696,7 +696,7 @@ function App() {
                   <span className={`status-badge status-${project.status.toLowerCase()}`}>
                     {project.status}
                   </span>
-                  <span>{project.description}</span>
+                  <span className="project-description">{project.description}</span>
                   <span className="project-meta">
                     Lead: {formatUser(project.project_lead)} · {project.member_count || 0}{" "}
                     {(project.member_count || 0) === 1 ? "member" : "members"}
